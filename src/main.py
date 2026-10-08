@@ -276,7 +276,7 @@ def main_game(screen: pygame.Surface) -> None:
                 else:
                     win = True
             pygame.display.update()
-            clock.tick(10)
+            clock.tick(60)
     except ValidationError as e:
         for error in e.errors():
             print(error['loc'], error['msg'])

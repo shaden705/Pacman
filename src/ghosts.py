@@ -37,6 +37,9 @@ class Ghost:
     frightened_until: int = 0
     pre_mode: Mode | None = None
     frightend: int = 0
+    speed: float = 1.0
+    progress: float = 0.0
+    target: tuple[int, int] | None = None
 
     @property
     def img_load(self) -> pygame.Surface:
@@ -119,26 +122,9 @@ class Ghosts:
                 continue
             if ghost.mode == Mode.FRIGHTEND:
                 img = self.scared_ghost_rect
-                screen.blit(
-                    img,
-                    (
-                        ghost.col * self.maze.cell_size
-                        + self.maze.margin_maze_col,
-                        ghost.row * self.maze.cell_size
-                        + self.maze.margin_maze_row,
-                    )
-                )
             else:
                 img = ghost.img_load
-                screen.blit(
-                    img,
-                    (
-                        ghost.col * self.maze.cell_size
-                        + self.maze.margin_maze_col,
-                        ghost.row * self.maze.cell_size
-                        + self.maze.margin_maze_row,
-                    )
-                )
+            screen.blit(img, self.pixel_pos(ghost))
 
     def valid_moves(
         self,
@@ -273,6 +259,21 @@ class Ghosts:
             9: 150,
             10: 120,
         }
+        speeds = {
+            1: 1.0,
+            2: 1.0,
+            3: 1.2,
+            4: 1.3,
+            5: 1.4,
+            6: 1.5,
+            7: 1.6,
+            8: 1.7,
+            9: 1.8,
+            10: 2.0,
+        }
+        speed = speeds.get(level, 2.0)
+        for ghost in self.ghost:
+            ghost.speed = speed
 
         delay = delays.get(level, 120)
         for ghost in self.ghost:
@@ -289,6 +290,28 @@ class Ghosts:
                     ghost.mode = Mode.CHASE
                 else:
                     ghost.mode = Mode.WANDER
+
+    def pixel_pos(self, ghost: Ghost) -> Tuple[int, int]:
+        """screen position of a ghost, including the slide between cells"""
+        cell = self.maze.cell_size
+        x = float(ghost.col * cell + self.maze.margin_maze_col)
+        y = float(ghost.row * cell + self.maze.margin_maze_row)
+        if ghost.target is not None:
+            t_row, t_col = ghost.target
+            x += (t_col - ghost.col) * ghost.progress
+            y += (t_row - ghost.row) * ghost.progress
+        return int(x), int(y)
+
+    def slide(self, ghost: Ghost) -> None:
+        """advance the ghost `speed` pixels toward its target cell"""
+        if ghost.target is None:
+            return
+        ghost.progress = min(
+            self.maze.cell_size, ghost.progress + ghost.speed)
+        if ghost.progress >= self.maze.cell_size:
+            ghost.row, ghost.col = ghost.target
+            ghost.target = None
+            ghost.progress = 0
 
     def frightend_mode(self, ghost: Ghost, px: int, py: int) -> None:
         """Move the ghost away from pacman"""
@@ -347,9 +370,9 @@ class Ghosts:
             self.check_collisions(ghost, (player_row, player_col))
         for ghost in self.ghost:
             if ghost.mode == Mode.SPAWN:
+                ghost.target = None
+                ghost.progress = 0
                 self.spawn_mode(ghost)
-                continue
-            if current_time - ghost.last_move < ghost.move_delay:
                 continue
             if (
                 ghost.mode == Mode.FRIGHTEND
@@ -357,10 +380,19 @@ class Ghosts:
             ):
                 ghost.mode = ghost.pre_mode or Mode.CHASE
                 ghost.pre_mode = None
-            ghost.last_move = current_time
-            if ghost.mode == Mode.CHASE:
-                self.chase_mode(ghost, player_row, player_col)
-            elif ghost.mode == Mode.WANDER:
-                self.random_mode(ghost)
-            elif ghost.mode == Mode.FRIGHTEND:
-                self.frightend_mode(ghost, player_row, player_col)
+
+            if ghost.target is None:
+                old = (ghost.row, ghost.col)
+                if ghost.mode == Mode.CHASE:
+                    self.chase_mode(ghost, player_row, player_col)
+                elif ghost.mode == Mode.WANDER:
+                    self.random_mode(ghost)
+                elif ghost.mode == Mode.FRIGHTEND:
+                    self.frightend_mode(ghost, player_row, player_col)
+                new = (ghost.row, ghost.col)
+                ghost.row, ghost.col = old
+                if new != old:
+                    ghost.target = new
+                    ghost.progress = 0
+
+            self.slide(ghost)

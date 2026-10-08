@@ -277,7 +277,7 @@ class CheatMode:
                 else:
                     self.win = True
             pygame.display.flip()
-            clock.tick(10)
+            clock.tick(60)
 
 
 def cheat_game(screen: pygame.Surface) -> None:
